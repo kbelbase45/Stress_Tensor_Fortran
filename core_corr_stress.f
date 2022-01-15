@@ -1,10 +1,10 @@
     SUBROUTINE core_corr(natm, nrp, r1, rhoc, jatom, index_a)!,cmb_index,rot_loc11,rot_ij11)
- !this subroutine calculates the core correction according to formula 6.49 with lm = 0
- !natm is non_equ_atm
- !nrp total number of the radial points upto Rmt
- !r1 radial points at each points (1 to nrp)
- !rhoc is the charge density same as one printed in case.clmcor
- !dv1p is the spherical potential
+ !this subroutine calculates the core correction stress tensor according to formula 6.49 with lm = 0
+ !natm different number of atoms in the unit cell
+ !nrp  total number of the radial points upto Rmt
+ !r1   radial points in the radial grid (1 to nrp)
+ !rhoc the core charge density similar to the one in case.clmcor
+ !dv1p the spherical potential (L=0,M=0)
        use TestCases
        use struct, only:mult, dx
        use core_sp, only: dv1p
@@ -31,9 +31,9 @@
        sum1 = 0.d0
        sum_p_last= 0.d0           
             
-       counter = nrp + 141                             !141 extra points than the information given in the input file               
-    !   DO jatm = 1, natm                               !no of diff atoms, when this subroutine is being called it is inside jatom loop
-          DO imu  = 1, MULT(jatom)                             !diff no of same atom
+       counter = nrp + 141                             !The radial mesh used for the core calculation has 141 additional points than the value specified in the input structure file
+    !   DO jatm = 1, natm                              !no of different atoms, this subroutine is called inside the Jatom loop, so that loop is not needed here.
+          DO imu  = 1, MULT(jatom)                     !different no of the same atom.
                DO ir = 1, counter                      
                      V1(ir) = two*DV1P(ir)             ! H to Ry      
                ENDDO               
@@ -54,44 +54,17 @@
                call chargel2(r1,1.d0,one,rhoc,dx1,counter,tot_char)                              
                
                call chargel2(r1,1.d0,one,value2(1),dx1,counter,int_test)
-                              
-           !    write(21,'(4es19.12)') (DV1P(ir) , ir = 1, nrp)
-           !    write(21,'(4es19.12)') (rhoc(ir) , ir = 1, nrp)
+                                         
           ENDDO
     !   enddo
+       !The above block is used for the pressure calculation and the following subroutine is used for the stress calculation
        
-       !The following subroutine contains the explicit calculation of core correction stress
-       call core_corr_stress(natm,nrp,r1,rhoc,dpot,v1,jatom, index_a)    !this is for full core correction stress
-!        WRITE(21,*)'-------------from core_corr', nrp       
-!        write(21,2021) nrp,r1(nrp),sum1/2.d0,value(nrp),DV1P(nrp)
-       
-!        write(21,2022) counter,tot_char,sum_p_last/2.d0     
-       
-!        write(21,2025) counter,int_test                   !to calculate int (r°2*rhoc*Veff)
-!        write(21,'("r at 781 and r at 781+141",2x,2f10.5)') r1(nrp),r1(counter)
-!        WRITE(21,*)'--------------------------'
-      
-       call chargel2(r1,1.d0,one,rhoc,dx,nrp,tot_charge_781)
-       call chargel2(r1,1.d0,one,rhoc,dx,counter,tot_charge_922) 
-       
-!        WRITE(21,'(a,f10.5,a,f10.5)') ':tot_charge_781',tot_charge_781,':tot_charge_922',tot_charge_922
-       
-!sum1       :-is the core kinetic energy at the muffin-tin sphere boundary at 781
-!sum_p_last :- is the core kinetic energy at the last points of the radial mesh, 
-!which is extended well beyond the muffin-tin sphere of a host atom. 921
-!tot_char   :- is the core density when integrate upto 921
-!int_test   :- integral which appeared as rho*v_{eff} upto 921
+       call core_corr_stress(natm,nrp,r1,rhoc,dpot,v1,jatom, index_a)    !this is for the full core correction stress tensor
 
- 2032 FORMAT(50X,I2,//)       
- 1980 FORMAT(3X)
- 2000 FORMAT(16X,I2,//)
- 2031 FORMAT(/)
- 2021 FORMAT(':core_kin_at  ',I8, 4(3X,ES19.12))
- 2022 FORMAT(':total_core charge and cor_kin at ',I6,2(3x,ES19.12))
- 2025 FORMAT(':core_int_at  ',I8, 3X,1ES19.12)
- 2033 FORMAT(///)
- 2040 FORMAT(///////////////////)
- 2041 FORMAT(31X,f8.5)
+      
+       call chargel2(r1,1.d0,one,rhoc,dx,nrp,tot_charge_781)        !integration of the core charge density up to the sphere boundary
+       call chargel2(r1,1.d0,one,rhoc,dx,counter,tot_charge_922)    !integration of the core charge density 141 radial points beyond the sphere boundary
+       
     RETURN
     END  
     
@@ -115,20 +88,19 @@
       real*8,  external   :: GAUNT
       integer, external   :: NOTRI
       complex*16          :: cabt(3,-1:1),ca_st_lm(3,-1:1,-1:1), zeroc, zero, imag1, imag2, fac_st(ncom+3,nat)
-      real*8              :: dvtmp(nrad+141),g0, gaunt1, int_out, vtmp(nrad+141)            
-!       real(kind=16)        ::                                     
-      complex*16           :: fc(ncom+3,nat)
-      integer              :: lm(2,ncom+3), lmmax22, lm11(2,ncom+3)
-      real*8               :: val_real(nrad+141),val_cmplx(nrad+141),value(nrad+141), &
-                              dval_real(nrad+141),dval_cmplx(nrad+141), out1, out2 
-      complex*16           :: value_c(nrad+141), out_c,int_ns1(ncom+3),int_ns2(ncom+3), &
+      real*8              :: dvtmp(nrad+141),g0, gaunt1, int_out, vtmp(nrad+141)                                            
+      complex*16          :: fc(ncom+3,nat)
+      integer             :: lm(2,ncom+3), lmmax22, lm11(2,ncom+3)
+      real*8              :: val_real(nrad+141),val_cmplx(nrad+141),value(nrad+141), &
+                             dval_real(nrad+141),dval_cmplx(nrad+141), out1, out2 
+      complex*16          :: value_c(nrad+141), out_c,int_ns1(ncom+3),int_ns2(ncom+3), &
                               vtmp_cmplx(nrad+141,ncom+3,nat), buf_sum(1:9)
      !=========here what we have===========
-     !v1   = spherical potential
-     !dpot = derivative of v1 
-     !rhoc = spherical density          
-     !cabt     = c-matrix coefficient during unit vectors expansion in terms of spherical harmonics
-     !ca_st_lm = c-matrix coefficient the derivative of the spherical harmoincs
+     !v1       = spherical potential
+     !dpot     = derivative of v1 
+     !rhoc     = spherical density          
+     !cabt     = c-matrix coefficients associated with the unit vector expansion with respect to spherical harmonics
+     !ca_st_lm = c-matrix coefficients associated with the derivative of the spherical harmonics
             
       one     = 1.d0
       two     = 2.d0
@@ -144,7 +116,7 @@
       
       call c_alpha_m(cabt)      !c-matrix of unit vector expansion
                            
-      cor_corr_sph  = zero!zeroc      !spherical part
+      cor_corr_sph  = zero!zeroc      !spherical part of the core correction stress tensor
       cor_corr_ns1  = zero!zeroc      !non-spherical part1         
       cor_corr_ns2  = zero!zeroc      !non-spherical part2                    
       cor_corr_ns1_buf = zero!zeroc
@@ -160,8 +132,7 @@
              vtmp_cmplx(ri,lm1p,jatom) = vns_st(ri,lm1p,jatom)
              val_real(ri) = vtmp_cmplx(ri,lm1p,jatom)
          ENDDO
-                 
-         !Uncomment this if int_ns1 and int_ns2 is used during the calculation
+                          
          call dergl(counter,r1,val_real,dval_real,.false.,g0,.false.)         
          
          DO ri = 1, counter
@@ -263,7 +234,7 @@
       ENDIF
 !===================end new modification================         
       
-   DO mu = 1, MULT(jatom)               !loop over same type of atoms, we don't loop over but multiply at the end      
+   DO mu = 1, MULT(jatom)               !loop over the same type of atoms in the unit cell
       index_a = index_a + 1
       
             DO ir = 1, counter
@@ -285,14 +256,13 @@
                ENDDO
             ENDDO                                                                                         
             
-      !first part of non-spherical core contribution      
+      !first part of the non-spherical core correction contribution      
       cor_corr_ns1_buf = 0.0
       buf_sum  = (0.0d0, 0.d0)
       DO lm1p = 1, lmtot1
          ll_p = lmtot(1,lm1p)
          mm_p = lmtot(2,lm1p)                                                       
-         
-         !if we use commented line then replace counter by nrp
+                  
          DO ri = 1, counter
             val_real(ri)  = REAL( vtmp_cmplx(ri,lm1p,jatom) )  
             val_cmplx(ri) = AIMAG( vtmp_cmplx(ri,lm1p,jatom) )
@@ -315,9 +285,7 @@
          call chargel2(r1,1.d0,one,val_real(1),dx,counter,out1)
          call chargel2(r1,1.d0,one,val_cmplx(1),dx,counter,out2)                  
          
-         out_c = dcmplx(out1,out2)             
-         
-!          IF( mm_p .ne. 0) CYCLE
+         out_c = dcmplx(out1,out2)                      
          
          IF( NOTRI(ll_p,1,1) .lt. 0) CYCLE           
            DO t = -1,1
@@ -345,7 +313,7 @@
       call symmetry_stress_rotij(index_a,jatom,cor_corr_ns1_buf)
       cor_corr_ns1 = cor_corr_ns1 + cor_corr_ns1_buf                                    
       
-      !second part of non-spherical core contribution
+      !second part of the non-spherical core correction contribution
       cor_corr_ns2_buf = 0.0
       DO lm1p = 1, lmtot1
          ll_p = lmtot(1,lm1p)
@@ -362,9 +330,7 @@
          call chargel2(r1,1.d0,one,val_real(1),dx,counter,out1)
          call chargel2(r1,1.d0,one,val_cmplx(1),dx,counter,out2)
          
-         out_c = dcmplx(out1,out2)         
-         
-!          IF( mm_p .ne. 0) CYCLE
+         out_c = dcmplx(out1,out2)                  
          
          DO s = -1,1,2
             IF( (ll_p+s) .ne. 1) CYCLE
@@ -443,6 +409,8 @@
   END SUBROUTINE multfc_core  
   
 subroutine symmetry_stress_rotij(index_a,jatom,inout_tensor)
+!This subroutine symmetrizes the core correction stress tensor using rotational matrices of the system
+!Both the rotij and rotloc are read from the case.struct file
 use struct, only : rotij, rotloc, lattic, ndif
 implicit none
     include 'param.inc'
@@ -520,7 +488,8 @@ implicit none
 !       buf_prod2(:,:) = matmul(transpose(rotij_st(:,:,index_a)),buf_prod1(:,:))
 !       buf_prod1(:,:) = matmul(buf_prod2(:,:),rotij_st(:,:,index_a))
      
-! !-------Below modification is done because of problem in Rutile if A^inv T A but gives the same result 
+! !-------Below modification is done because of the problem in Rutile 
+! A^inv Tensor A gives the same result as A^T Tensor A
 
       A1(:,:) =  rotloc(:,:,jatom) 
       
@@ -673,7 +642,7 @@ end subroutine lm_combine
 
 SUBROUTINE multsu(qq,lmmax,lm)
 !                                                                       
-!     MULTSU COMBINES THE MULTIPOLMOMENTS QQ                            
+!                                
 !     
 
 !   USE struct, ONLY: nat
@@ -776,7 +745,7 @@ END SUBROUTINE MULTsu
 
 
 subroutine read_vns()
-!The subroutine reads the non-spherical potential to calculate the non-spherical part of the core correction stress.
+!This subroutine reads the non-spherical potential to calculate the non-spherical part of the core correction stress.
 !This is being called from outside of jatom loop in hfsd.f
    use struct  , only: nat, jri
    use core_nsp, only: vns_st, lmmax_st, lm11_st
