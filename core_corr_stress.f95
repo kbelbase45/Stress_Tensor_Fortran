@@ -1,99 +1,112 @@
-    SUBROUTINE core_corr(natm, nrp, r1, rhoc, jatom, index_a)!,cmb_index,rot_loc11,rot_ij11)
- !this subroutine calculates the core correction stress tensor according to formula 6.49 with lm = 0
- !natm different number of atoms in the unit cell
- !nrp  total number of the radial points upto Rmt
- !r1   radial points in the radial grid (1 to nrp)
- !rhoc the core charge density similar to the one in case.clmcor
- !dv1p the spherical potential (L=0,M=0)
-       use TestCases
-       use struct, only:mult, dx
-       use core_sp, only: dv1p
-       implicit REAL*8 (A-H,O-Z)
-       include 'param.inc'             
-!NRAD specified in param.inc, which is 881       
+! This subroutine calculates the trace of core correction stress tensor and 
+! it is called each time for the different atom in the system.
+
+  SUBROUTINE core_corr(natm, nrp, r1, rhoc, jatom, index_a) 
+ !natm different atoms in the unit cell
+ !nrp  total radial points upto the atomic boundary
+ !r1   radial points on the radial grid (1 to nrp)
+ !rhoc r*r*spherical core charge density 
+ !dv1p spherical potential (L=0,M=0)
+       USE TestCases
+       USE struct,  only: mult, dx
+       USE core_sp, only: dv1p
+       IMPLICIT REAL*8 (A-H,O-Z)
+       INCLUDE 'param.inc'             
+       !NRAD specified in param.inc, which is 881       
                   
-       integer, intent(in)    :: natm, nrp, jatom, index_a
-       real*8, intent(in)     :: r1(nrad+141), rhoc(nrad+141)
-       integer                :: ir,jatm,imu
-       real*8                 :: dx1, dpot(nrad+141),value(nrad+141),V1(NRAD+141)
-       real*8                 :: SQ4pi,one,two,TC,Pi,value2(nrad+141)
-       integer                :: counter, ii
-       real*8                 :: sum1,sum_p_last,tot_char,int_test                                       
-       real*8                 :: tot_charge_781,tot_charge_922
+       INTEGER, intent(in)    :: natm, nrp, jatom, index_a
+       REAL*8,  intent(in)    :: r1(nrad+141), rhoc(nrad+141)
+       INTEGER                :: ir,jatm,imu, counter, ii
+       REAL*8                 :: dx1, dpot(nrad+141),value(nrad+141),V1(NRAD+141)
+       REAL*8                 :: SQ4pi,one,two,TC,Pi,value2(nrad+141)       
+       REAL*8                 :: sum1,sum_p_last,tot_char,int_test                                       
+       REAL*8                 :: tot_charge_781,tot_charge_922
         
-       PI = 4.0D+0*ATAN(1.0D+0)             
-       sq4pi=1.d0/sqrt(4.d0*pi) 
-       one=1.d0
-       two=2.d0
-!        dx = log(r1(nrp)/r1(1))/(nrp-1)                     
+       PI    = 4.0D+0*ATAN(1.0D+0)             
+       sq4pi = 1.d0/sqrt(4.d0*pi) 
+       one   = 1.d0
+       two   = 2.d0
+       !increment of the logarithmic mesh of different atoms
        dx1 = dx(jatom)
         
-       sum1 = 0.d0
-       sum_p_last= 0.d0           
-            
-       counter = nrp + 141                             !The radial mesh used for the core calculation has 141 additional points than the value specified in the input structure file
-    !   DO jatm = 1, natm                              !no of different atoms, this subroutine is called inside the Jatom loop, so that loop is not needed here.
-          DO imu  = 1, MULT(jatom)                     !different no of the same atom.
+       sum1       = 0.d0
+       sum_p_last = 0.d0           
+       
+       ! The radial mesh used in the core calculation program has 781 radial points. 
+       ! This is 141 additional point then specified in structure file, nrp = 781.
+       
+       counter = nrp + 141
+          !loop over the same type of atoms in the unit cell
+          ! for silicon, jatom = 1 and MULT(jatom) = 2.
+          DO imu  = 1, MULT(jatom)
+               !loop over the radial point inside an atomic sphere
                DO ir = 1, counter                      
                      V1(ir) = two*DV1P(ir)             ! H to Ry      
                ENDDO               
                
+               !calculate the derivate of the potential
                call dergl(counter,r1,v1,dpot,.false.,g0,.false.)          
                
+               !calculate r^3*dv and r^2*v on each radial points 
                DO ir = 1, counter                          
                   value(ir) = rhoc(ir)*dpot(ir)*r1(ir)
                   value2(ir)= rhoc(ir)*V1(ir)
                enddo
                
-               call chargel2(r1,1.d0,one,value(1),dx1,nrp,TC)                     
+               !integrate int_0^R(r^3*dv); R = r1|_(ir=781)
+               !R atomic sphere size
+               call chargel2(r1,1.d0,one,value(1),dx1,nrp,TC) 
+               
+               !sum for all equivalent and non-equivalent atoms
                sum1 = sum1 + TC               
                
+               !Integration int_0^R(r^3*dv); R = r1|_(ir=781+141)
+               !R larger than atomic sphere size
                call chargel2(r1,1.d0,one,value(1),dx1,counter,TC)                     
                sum_p_last = sum_p_last + TC               
-
+               
+               !Integration int_0^R(r^2*core_charge_density)
+               !compute total core charge in the whole region 
                call chargel2(r1,1.d0,one,rhoc,dx1,counter,tot_char)                              
                
+               !Integration int_0^R(r^2*v); R = r1|_(ir=781+141)
                call chargel2(r1,1.d0,one,value2(1),dx1,counter,int_test)
                                          
           ENDDO
-    !   enddo
-       !The above block is used for the pressure calculation and the following subroutine is used for the stress calculation
+    
        
-       call core_corr_stress(natm,nrp,r1,rhoc,dpot,v1,jatom, index_a)    !this is for the full core correction stress tensor
-
-      
-       call chargel2(r1,1.d0,one,rhoc,dx,nrp,tot_charge_781)        !integration of the core charge density up to the sphere boundary
-       call chargel2(r1,1.d0,one,rhoc,dx,counter,tot_charge_922)    !integration of the core charge density 141 radial points beyond the sphere boundary
-       
+       !Calculate all nine different components of the core correction stress tensor
+       call core_corr_stress(natm,nrp,r1,rhoc,dpot,v1,jatom, index_a) 
+             
     RETURN
     END  
     
     SUBROUTINE core_corr_stress(natm,nrp,r1,rhoc,dpot,v1,jatom, index_a)
-      use TestCases
-      use struct, only : nat, iatnr, mult
-      use core_nsp, only: lm11_st, lmmax_st, vns_st, sum_tot
-      implicit REAL*8 (A-H,O-Z)
-      include 'param.inc'
-      integer             :: natm,nrp,jatm,mu,  ir, jatom, index_a
+      USE TestCases
+      USE struct, only : nat, iatnr, mult
+      USE core_nsp, only: lm11_st, lmmax_st, vns_st, sum_tot
+      IMPLICIT REAL*8 (A-H,O-Z)
+      INCLUDE 'param.inc'
+      INTEGER, INTENT(IN) :: natm,nrp,jatom, index_a
       REAL*8              :: dpot(nrad+141),r1(nrad+141),rhoc(nrad+141),          &
                              V1(nrad+141),value1(nrad+141)                                   
       REAL*8              :: one,two, pi, dx,  TC,TC1, sq4pi, sqrt2, sq4_pi 
                                   
-      real*8              :: cor_corr_sph(1:9), cor_corr_ns1(1:9), &
+      REAL*8              :: cor_corr_sph(1:9), cor_corr_ns1(1:9), &
                              cor_corr_ns2(1:9), cor_corr_tot(1:9), &
                              cor_corr_ns1_buf(1:9), cor_corr_ns2_buf(1:9)
                              
       integer             :: t,tp,s, alpha,beta,index2, lm1p,lm1, lmmax_p, ll_p, mm_p, counter,&
                              ri,insv, lmmax2,lmmax3, lmtot(2,ncom+3), lmtot1
-      real*8,  external   :: GAUNT
-      integer, external   :: NOTRI
-      complex*16          :: cabt(3,-1:1),ca_st_lm(3,-1:1,-1:1), zeroc, zero, imag1, imag2, fac_st(ncom+3,nat)
-      real*8              :: dvtmp(nrad+141),g0, gaunt1, int_out, vtmp(nrad+141)                                            
-      complex*16          :: fc(ncom+3,nat)
-      integer             :: lm(2,ncom+3), lmmax22, lm11(2,ncom+3)
-      real*8              :: val_real(nrad+141),val_cmplx(nrad+141),value(nrad+141), &
+      REAL*8,  external   :: GAUNT
+      INTEGER, external   :: NOTRI
+      COMPLEX*16          :: cabt(3,-1:1),ca_st_lm(3,-1:1,-1:1), zeroc, zero, imag1, imag2, fac_st(ncom+3,nat)
+      REAL*8              :: dvtmp(nrad+141),g0, gaunt1, int_out, vtmp(nrad+141)                                            
+      COMPLEX*16          :: fc(ncom+3,nat)
+      INTEGER             :: lm(2,ncom+3), lmmax22, lm11(2,ncom+3),jatm,mu,  ir
+      REAL*8              :: val_real(nrad+141),val_cmplx(nrad+141),value(nrad+141), &
                              dval_real(nrad+141),dval_cmplx(nrad+141), out1, out2 
-      complex*16          :: value_c(nrad+141), out_c,int_ns1(ncom+3),int_ns2(ncom+3), &
+      COMPLEX*16          :: value_c(nrad+141), out_c,int_ns1(ncom+3),int_ns2(ncom+3), &
                               vtmp_cmplx(nrad+141,ncom+3,nat), buf_sum(1:9)
      !=========here what we have===========
      !v1       = spherical potential
