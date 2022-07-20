@@ -1,5 +1,5 @@
-! This subroutine calculates the trace of core correction stress tensor and 
-! it is called each time for the different atom in the system.
+! This subroutine calculates the trace of core correction stress tensor.  
+! It is called each time from within the loop through a different atom of the system.
 
   SUBROUTINE core_corr(natm, nrp, r1, rhoc, jatom, index_a) 
  !natm different atoms in the unit cell
@@ -36,7 +36,7 @@
        ! This is 141 additional point then specified in structure file, nrp = 781.
        
        counter = nrp + 141
-          !loop over the same type of atoms in the unit cell
+          ! imu is loop over the same type of atoms in the unit cell
           ! for silicon, jatom = 1 and MULT(jatom) = 2.
           DO imu  = 1, MULT(jatom)
                !loop over the radial point inside an atomic sphere
@@ -82,32 +82,46 @@
     END  
     
     SUBROUTINE core_corr_stress(natm,nrp,r1,rhoc,dpot,v1,jatom, index_a)
+    ! This is the subroutine that computes Eq (6.48) of Core_Correction_stress.pdf.
+    ! Structural parameters are accessed through struct module.
+    ! The different l,m components (lm11_st) of the non-spherical potential are 
+    ! supplied through the module core_nsp. This is not useful for the total energy
+    ! calculation because only the spherically average (l=0,m=0) potential contributes.
       USE TestCases
-      USE struct, only : nat, iatnr, mult
-      USE core_nsp, only: lm11_st, lmmax_st, vns_st, sum_tot
+      USE struct  , only : nat, iatnr, mult      
+      USE core_nsp, only : lm11_st, lmmax_st, vns_st, sum_tot
       IMPLICIT REAL*8 (A-H,O-Z)
       INCLUDE 'param.inc'
+      
       INTEGER, INTENT(IN) :: natm,nrp,jatom, index_a
-      REAL*8              :: dpot(nrad+141),r1(nrad+141),rhoc(nrad+141),          &
-                             V1(nrad+141),value1(nrad+141)                                   
+      
+      REAL*8,  INTENT(IN) :: dpot(nrad+141),r1(nrad+141),rhoc(nrad+141),V1(nrad+141)                                                                
+                             
       REAL*8              :: one,two, pi, dx,  TC,TC1, sq4pi, sqrt2, sq4_pi 
                                   
-      REAL*8              :: cor_corr_sph(1:9), cor_corr_ns1(1:9), &
-                             cor_corr_ns2(1:9), cor_corr_tot(1:9), &
-                             cor_corr_ns1_buf(1:9), cor_corr_ns2_buf(1:9)
+      REAL*8              :: cor_corr_sph(1:9),cor_corr_ns1(1:9),cor_corr_ns2(1:9),              &
+                             cor_corr_tot(1:9),cor_corr_ns1_buf(1:9),cor_corr_ns2_buf(1:9)
                              
-      integer             :: t,tp,s, alpha,beta,index2, lm1p,lm1, lmmax_p, ll_p, mm_p, counter,&
-                             ri,insv, lmmax2,lmmax3, lmtot(2,ncom+3), lmtot1
-      REAL*8,  external   :: GAUNT
-      INTEGER, external   :: NOTRI
-      COMPLEX*16          :: cabt(3,-1:1),ca_st_lm(3,-1:1,-1:1), zeroc, zero, imag1, imag2, fac_st(ncom+3,nat)
-      REAL*8              :: dvtmp(nrad+141),g0, gaunt1, int_out, vtmp(nrad+141)                                            
-      COMPLEX*16          :: fc(ncom+3,nat)
+                             
+      INTEGER             :: t,tp,s, alpha,beta,index2, lm1p,lm1, lmmax_p, ll_p, mm_p,            &
+                             counter,ri,insv, lmmax2,lmmax3, lmtot(2,ncom+3), lmtot1
+                             
+                             
+      COMPLEX*16          :: cabt(3,-1:1),ca_st_lm(3,-1:1,-1:1), zeroc, zero, imag1, imag2,        &
+                             fac_st(ncom+3,nat),fc(ncom+3,nat),value_c(nrad+141),buf_sum(1:9),     &   
+                             out_c,int_ns1(ncom+3),int_ns2(ncom+3),vtmp_cmplx(nrad+141,ncom+3,nat)                               
+      
+      REAL*8              :: dvtmp(nrad+141),g0, gaunt1, int_out, vtmp(nrad+141), value1(nrad+141)
+            
       INTEGER             :: lm(2,ncom+3), lmmax22, lm11(2,ncom+3),jatm,mu,  ir
+      
       REAL*8              :: val_real(nrad+141),val_cmplx(nrad+141),value(nrad+141), &
                              dval_real(nrad+141),dval_cmplx(nrad+141), out1, out2 
-      COMPLEX*16          :: value_c(nrad+141), out_c,int_ns1(ncom+3),int_ns2(ncom+3), &
-                              vtmp_cmplx(nrad+141,ncom+3,nat), buf_sum(1:9)
+      
+      ! The following two functions are used to compute the gaunt numbers (G in .pdf).                        
+      REAL*8,  external   :: GAUNT
+      INTEGER, external   :: NOTRI   
+      
      !=========here what we have===========
      !v1       = spherical potential
      !dpot     = derivative of v1 
