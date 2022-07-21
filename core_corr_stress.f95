@@ -97,37 +97,33 @@
       
       REAL*8,  INTENT(IN) :: dpot(nrad+141),r1(nrad+141),rhoc(nrad+141),V1(nrad+141)                                                                
                              
-      REAL*8              :: one,two, pi, dx,  TC,TC1, sq4pi, sqrt2, sq4_pi 
+      REAL*8              :: one, two, pi, dx, TC, TC1, sq4pi, sqrt2, sq4_pi, g0, gaunt1,            &
+                             out1, out2
                                   
-      REAL*8              :: cor_corr_sph(1:9),cor_corr_ns1(1:9),cor_corr_ns2(1:9),              &
-                             cor_corr_tot(1:9),cor_corr_ns1_buf(1:9),cor_corr_ns2_buf(1:9)
+      REAL*8              :: cor_corr_sph(1:9),cor_corr_ns1(1:9),cor_corr_ns2(1:9),                  &
+                             cor_corr_tot(1:9),cor_corr_ns1_buf(1:9),cor_corr_ns2_buf(1:9),          &
                              
                              
-      INTEGER             :: t,tp,s, alpha,beta,index2, lm1p,lm1, lmmax_p, ll_p, mm_p,            &
-                             counter,ri,insv, lmmax2,lmmax3, lmtot(2,ncom+3), lmtot1
+      INTEGER             :: t, tp, s, alpha, beta, index2, lm1p, lm1, lmmax_p, ll_p, mm_p,          &
+                             counter,ri, ir, insv, lmmax2, lmmax3, lmtot(2,ncom+3), lmtot1,          &
+                             mu, lmmax22, lm11(2,ncom+3) 
                              
-                             
-      COMPLEX*16          :: cabt(3,-1:1),ca_st_lm(3,-1:1,-1:1), zeroc, zero, imag1, imag2,        &
-                             fac_st(ncom+3,nat),fc(ncom+3,nat),value_c(nrad+141),buf_sum(1:9),     &   
-                             out_c,int_ns1(ncom+3),int_ns2(ncom+3),vtmp_cmplx(nrad+141,ncom+3,nat)                               
-      
-      REAL*8              :: dvtmp(nrad+141),g0, gaunt1, int_out, vtmp(nrad+141), value1(nrad+141)
-            
-      INTEGER             :: lm(2,ncom+3), lmmax22, lm11(2,ncom+3),jatm,mu,  ir
-      
-      REAL*8              :: val_real(nrad+141),val_cmplx(nrad+141),value(nrad+141), &
-                             dval_real(nrad+141),dval_cmplx(nrad+141), out1, out2 
+      COMPLEX*16          :: cabt(3,-1:1),ca_st_lm(3,-1:1,-1:1), zeroc, zero, imag1, imag2,          &
+                             fac_st(ncom+3,nat),fc(ncom+3,nat),value_c(nrad+141),buf_sum(1:9),       &   
+                             out_c,int_ns1(ncom+3),int_ns2(ncom+3),vtmp_cmplx(nrad+141,ncom+3,nat)                                                                  
       
       ! The following two functions are used to compute the gaunt numbers (G in .pdf).                        
       REAL*8,  external   :: GAUNT
       INTEGER, external   :: NOTRI   
       
-     !=========here what we have===========
-     !v1       = spherical potential
-     !dpot     = derivative of v1 
-     !rhoc     = spherical density          
-     !cabt     = c-matrix coefficients associated with the unit vector expansion with respect to spherical harmonics
-     !ca_st_lm = c-matrix coefficients associated with the derivative of the spherical harmonics
+     !Description of variables and theirs association with Eq (6.48) of Core_Correction_stress.pdf 
+     !v1       = spherical potential, V_{00}(r)
+     !dpot     = derivative of v1   , dV_{00}(r)/dr 
+     !rhoc     = spherical density or precisely sqrt(4pi)*r^2*rho_{00}(r).          
+     !cabt     = c-matrix coefficients used to expand then unit vector expansion in
+     !           terms of spherical harmonics, c(alpha,t) or c(beta,t') in Eq (6.48) 
+     !ca_st_lm = c-matrix coefficients used to calculated the derivative of the spherical
+     !           harmonics. c_{alpha}^{st}(l,m) in Eq (6.48).
             
       one     = 1.d0
       two     = 2.d0
@@ -141,20 +137,34 @@
       imag2   = (0.d0,1.d0)
       counter = nrp+141
       
-      call c_alpha_m(cabt)      !c-matrix of unit vector expansion
-                           
-      cor_corr_sph  = zero!zeroc      !spherical part of the core correction stress tensor
-      cor_corr_ns1  = zero!zeroc      !non-spherical part1         
-      cor_corr_ns2  = zero!zeroc      !non-spherical part2                    
-      cor_corr_ns1_buf = zero!zeroc
-      cor_corr_ns2_buf = zero!zeroc            
+      !c_alpha_m computes both cabt and ca_st_lm.
+      call c_alpha_m(cabt)            
+       
+      !Spherical part (l=0,m=0) of the core correction  
+      cor_corr_sph  = zero
       
-      lmmax_p = lmmax_st(jatom)        
-!============reading of non-spherical potential==========================      
+      !Remaining lm contribution of the first term of Eq. (6.48)
+      cor_corr_ns1  = zero!zeroc      !non-spherical part1 
+      
+      !Second term of Eq. (6.48)
+      cor_corr_ns2  = zero
+            
+      cor_corr_ns1_buf = zero
+      cor_corr_ns2_buf = zero
+      
+      !Total lm components in the non-spherical potential
+      lmmax_p = lmmax_st(jatom)
+      
+
+      !Read the non-spherical potential and evaluate integrals Eqs.(6.49) and (6.50)
       DO lm1p = 1, lmmax_p
+         !l index unpacked
          lm11(1,lm1p) = lm11_st(1,lm1p,jatom)
+         !m index unpacked
          lm11(2,lm1p) = lm11_st(2,lm1p,jatom)                  
          
+         !Stored potential as complex variables which is useful later
+         !to convert real to complex spherical harmonics term
          DO ri = 1, nrp
              vtmp_cmplx(ri,lm1p,jatom) = vns_st(ri,lm1p,jatom)
              val_real(ri) = vtmp_cmplx(ri,lm1p,jatom)
