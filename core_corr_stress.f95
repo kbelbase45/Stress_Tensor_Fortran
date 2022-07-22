@@ -98,7 +98,7 @@
       REAL*8,  INTENT(IN) :: dpot(nrad+141),r1(nrad+141),rhoc(nrad+141),V1(nrad+141)                                                                
                              
       REAL*8              :: one, two, pi, dx, TC, TC1, sq4pi, sqrt2, sq4_pi, g0, gaunt1,            &
-                             out1, out2
+                             out1, out2, O_by_4pi
                                   
       REAL*8              :: cor_corr_sph(1:9),cor_corr_ns1(1:9),cor_corr_ns2(1:9),                  &
                              cor_corr_tot(1:9),cor_corr_ns1_buf(1:9),cor_corr_ns2_buf(1:9),          &
@@ -125,17 +125,18 @@
      !ca_st_lm = c-matrix coefficients used to calculated the derivative of the spherical
      !           harmonics. c_{alpha}^{st}(l,m) in Eq (6.48).
             
-      one     = 1.d0
-      two     = 2.d0
-      PI      = 4.0D+0*ATAN(1.0D+0) 
-      dx      = log(r1(nrp)/r1(1))/(nrp-1)     
-      sq4pi   = 1.d0/sqrt(4.d0*pi)
-      sq4_pi  = sqrt(4.d0*pi)
-      zeroc   = (0.d0,0.d0) 
-      zero    = 0.d0
-      sqrt2   = sqrt(2.D0)
-      imag2   = (0.d0,1.d0)
-      counter = nrp+141
+      one      = 1.d0
+      two      = 2.d0
+      PI       = 4.0D+0*ATAN(1.0D+0) 
+      dx       = log(r1(nrp)/r1(1))/(nrp-1)     
+      sq4pi    = 1.d0/sqrt(4.d0*pi)
+      O_by_4pi = sq4pi*sq4pi
+      sq4_pi   = sqrt(4.d0*pi)
+      zeroc    = (0.d0,0.d0) 
+      zero     = 0.d0
+      sqrt2    = sqrt(2.D0)
+      imag2    = (0.d0,1.d0)
+      counter  = nrp+141
       
       !c_alpha_m computes both cabt and ca_st_lm.
       call c_alpha_m(cabt)            
@@ -156,7 +157,7 @@
       lmmax_p = lmmax_st(jatom)
       
 
-      !Read the non-spherical potential and evaluate integrals Eqs.(6.49) and (6.50)
+      !Read the non-spherical potential and evaluate integrals, Eqs.(6.49) and (6.50)
       DO lm1p = 1, lmmax_p
          !l index unpacked
          lm11(1,lm1p) = lm11_st(1,lm1p,jatom)
@@ -169,59 +170,70 @@
              vtmp_cmplx(ri,lm1p,jatom) = vns_st(ri,lm1p,jatom)
              val_real(ri) = vtmp_cmplx(ri,lm1p,jatom)
          ENDDO
-                          
+         
+         !Calculate the derivative using spline method
          call dergl(counter,r1,val_real,dval_real,.false.,g0,.false.)         
          
+         !Integrand of Eq.(6.49), sqrt(4*pi)r^2 is already supressed to rhoc
          DO ri = 1, counter
            value(ri) = r1(ri)*rhoc(ri)*dval_real(ri) 
          ENDDO          
          
+         !Total integration of Eq.(6.49)
          call chargel2(r1,1.d0,one,value(1),dx,counter,out1)
          int_ns1(lm1p) = out1
-           
+         
+         !Integrand of Eq.(6.50)
          DO ri = 1, counter  
            value(ri) = rhoc(ri)*val_real(ri)
          ENDDO           
+         
+         !Total integration of Eq.(6.50)
          call chargel2(r1,1.d0,one,value(1),dx,counter,out2)    
          int_ns2(lm1p) = out2
          
       ENDDO      
-!================end reading non-spherical potential===================        
-
-!===================New modification====================2021     
+      
+        !In wien2k, negative m in charge density and potential are
+        !given in the input files. It needs to unpack as follow.
         lmmax22  = lmmax_p
         DO lm1p = 1, lmmax_p           
            mm_p = lm11(2,lm1p)
-           IF(mm_p .ne. 0) then
+           IF(mm_p .ne. 0) THEN
              lmmax22 = lmmax22 + 1 
               lm11(1,lmmax22) =  lm11(1,lm1p)
               lm11(2,lmmax22) = -lm11(2,lm1p)              
-           endif
+           ENDIF
         ENDDO              
-!                
+      
+      ! For non-cubic system iatnr(jatom) is negative and for cubic
+      ! it is positive. Below real harmonics terms are converted to
+      ! spherical harmonics term. In wien2k both the charge density
+      ! and potential are given in terms of real spherical harmonics.
+      
       IF(iatnr(jatom) .lt. 0) THEN         
          lmmax_new  = lmmax_p
          DO lm1 = 1, lmmax_p            
             mm_p = lm11(2,lm1)
-            if(mm_p .ne. 0) then
+            IF(mm_p .ne. 0) THEN
               lmmax_new = lmmax_new + 1
-              if(lmmax_new .gt. ncom+3) STOP 'error in "core_corr.f" in lm list'
+              IF(lmmax_new .gt. ncom+3) STOP 'error in "core_corr.f" in lm list'
               vns_st(1:nrp,lmmax_new,jatom) = vns_st(1:nrp,lm1,jatom)
               vtmp_cmplx(1:counter,lmmax_new,jatom) =  vtmp_cmplx(1:counter,lm1,jatom)              
               int_ns1(lmmax_new) = int_ns1(lm1)
               int_ns2(lmmax_new) = int_ns2(lm1)                                                       
-            endif                                    
+            ENDIF                                    
          ENDDO
-                  
+          
+         !Calculate multiplicative constants when real spherical harmonics
+         !are converted to complex spherical harmonics.
          call multfc_core( fc,jatom,lmmax_new,lm11(1,1) )            
                   
          DO lm1 = 1, lmmax_new                      
-!             vns_st(1:nrp,lm1,jatom) = vns_st(1:nrp,lm1,jatom)*fc(lm1,jatom)
             vtmp_cmplx(1:counter,lm1,jatom) = vtmp_cmplx(1:counter,lm1,jatom)*fc(lm1,jatom)
                 int_ns1(lm1) = int_ns1(lm1)*fc(lm1,jatom)
                 int_ns2(lm1) = int_ns2(lm1)*fc(lm1,jatom)    
-         ENDDO               
-      !end recently added lines
+         ENDDO                        
       
          lmtot1 = 0
          DO 39 lm1 = 1, lmmax_new
@@ -230,14 +242,14 @@
             lmtot(2,lmtot1) = lm11(2,lm1)
             
              vns_st(1:nrp,lmtot1,jatom) = vns_st(1:nrp,lm1,jatom)
-              vtmp_cmplx(1:counter,lmtot1,jatom) = vtmp_cmplx(1:counter,lm1,jatom)
-              int_ns1(lmtot1) = int_ns1(lm1)
-              int_ns2(lmtot1) = int_ns2(lm1)                                            
+             vtmp_cmplx(1:counter,lmtot1,jatom) = vtmp_cmplx(1:counter,lm1,jatom)
+             int_ns1(lmtot1) = int_ns1(lm1)
+             int_ns2(lmtot1) = int_ns2(lm1)                                            
             
+            !Combine -l and +l terms if m is the same for both, like V_{1,1} = V_{-1,1} + V_{+1,1}
             IF(lmtot1 .eq. 1) GOTO 39
-            IF( ( IABS( lmtot(1,lmtot1)) .eq. IABS( lmtot(1,lmtot1-1))  ) .AND.   &
-              (  lmtot(2,lmtot1) .eq.  lmtot(2,lmtot1-1)  )  ) THEN
-!               vns_st(1:nrp,lmtot1-1,jatom) = vns_st(1:nrp,lmtot1-1,jatom) + vns_st(1:nrp,lmtot1,jatom)
+            IF( ( IABS(lmtot(1,lmtot1) ) .eq. IABS( lmtot(1,lmtot1-1) )  ) .AND.   &
+              (  lmtot(2,lmtot1) .eq.  lmtot(2,lmtot1-1)  )  ) THEN               
               vtmp_cmplx(1:counter,lmtot1-1,jatom) = vtmp_cmplx(1:counter,lmtot1-1,jatom) + vtmp_cmplx(1:counter,lmtot1,jatom)
                   int_ns1(lmtot1-1) = int_ns1(lmtot1-1) + int_ns1(lmtot1)
                   int_ns2(lmtot1-1) = int_ns2(lmtot1-1) + int_ns2(lmtot1)                  
@@ -246,10 +258,11 @@
 39       CONTINUE         
 
       ELSE
-!          call lm_combine(counter,lmmax_p,vns_st(1,1,jatom),lm11(1,1),jatom)
+         !After Else, calculation is for cubic system.
+         !lm_combine combine the cubic harmonics to the potential.
          call lm_combine(counter,lmmax_p,vtmp_cmplx(1,1,jatom),lm11(1,1),jatom)
-            call multsu(int_ns1(1),lmmax_p,lm11(1,1))
-            call multsu(int_ns2(1),lmmax_p,lm11(1,1))
+         call multsu(int_ns1(1),lmmax_p,lm11(1,1))
+         call multsu(int_ns2(1),lmmax_p,lm11(1,1))
          
          lmtot1 = lmmax_p
          DO lm1 = 1, lmmax_p
@@ -261,7 +274,6 @@
                lmtot(1,lmtot1) =  lm11(1,lm1)
                lmtot(2,lmtot1) = -lm11(2,lm1)
                
-!                vns_st(1:nrp,lmtot1,jatom) = vns_st(1:nrp,lm1,jatom)
                vtmp_cmplx(1:counter,lmtot1,jatom) = vtmp_cmplx(1:counter,lm1,jatom)
                int_ns1(lmtot1) = int_ns1(lm1)
                int_ns2(lmtot1) = int_ns2(lm1)
@@ -269,14 +281,18 @@
          ENDDO
          
       ENDIF
-!===================end new modification================         
       
-   DO mu = 1, MULT(jatom)               !loop over the same type of atoms in the unit cell
+   !loop over the same type of atoms in the unit cell   
+   DO mu = 1, MULT(jatom)               
       index_a = index_a + 1
-      
+            
+            !Spherical part, both charge density and potential are spherical (l=0,m=0)
+            !l=0,m=0 component of the first term of Eq.(6.48)
             DO ir = 1, counter
                value1(ir) = r1(ir)*rhoc(ir)*dpot(ir)               
             ENDDO
+            
+            !Spherical part of an integration Eq.(6.49)
             call chargel2(r1,1.d0,one,value1(1),dx,counter,TC)           
             
             DO t = -1,1
@@ -293,7 +309,7 @@
                ENDDO
             ENDDO                                                                                         
             
-      !first part of the non-spherical core correction contribution      
+      !First part of the non-spherical core correction contribution      
       cor_corr_ns1_buf = 0.0
       buf_sum  = (0.0d0, 0.d0)
       DO lm1p = 1, lmtot1
@@ -302,13 +318,7 @@
                   
          DO ri = 1, counter
             val_real(ri)  = REAL( vtmp_cmplx(ri,lm1p,jatom) )  
-            val_cmplx(ri) = AIMAG( vtmp_cmplx(ri,lm1p,jatom) )
-            
-!             val_real(ri)  = REAL( vtmp_cmplx(ri,lm1p,1) )  
-!             val_cmplx(ri) = AIMAG( vtmp_cmplx(ri,lm1p,1) )            
-            
-!             val_real(ri)  = REAL( vns_st(ri,lm1p,jatom) )  
-!             val_cmplx(ri) = AIMAG( vns_st(ri,lm1p,jatom) )            
+            val_cmplx(ri) = AIMAG( vtmp_cmplx(ri,lm1p,jatom) )                       
          ENDDO              
          
          call dergl(counter,r1,val_real,dval_real,.false.,g0,.false.)
@@ -324,9 +334,11 @@
          
          out_c = dcmplx(out1,out2)                      
          
+         !Check triangle inequility for l indexes of Gaunt number.
          IF( NOTRI(ll_p,1,1) .lt. 0) CYCLE           
            DO t = -1,1
               DO tp = -1,1
+                 !Sum of m indexes has to zero.
                  IF( (mm_p+t+tp) .ne. 0 ) CYCLE                      
                   gaunt1 = GAUNT(ll_p,1,1,-mm_p,t,tp)                                       
                                       
@@ -347,23 +359,26 @@
            ENDDO           
       ENDDO                            
       
+      !Symmetrize the stress tensor using rotational matrix that is
+      !in a structure file.
       call symmetry_stress_rotij(index_a,jatom,cor_corr_ns1_buf)
       cor_corr_ns1 = cor_corr_ns1 + cor_corr_ns1_buf                                    
       
-      !second part of the non-spherical core correction contribution
+      !Second part of the non-spherical core correction contribution
       cor_corr_ns2_buf = 0.0
       DO lm1p = 1, lmtot1
          ll_p = lmtot(1,lm1p)
          mm_p = lmtot(2,lm1p)
          
          DO ri = 1, counter
-            value_c(ri) = rhoc(ri)*vtmp_cmplx(ri,lm1p,jatom) 
-            
-!             value_c(ri) = rhoc(ri)*vtmp_cmplx(ri,lm1p,1)             
-!             value_c(ri) = rhoc(ri)*vns_st(ri,lm1p,jatom) 
+            value_c(ri) = rhoc(ri)*vtmp_cmplx(ri,lm1p,jatom)             
          ENDDO
+         
+         !Since the potential now is complex and integration is performed 
+         !for real and complex part seperately.
          val_real  = REAL( value_c )
          val_cmplx = AIMAG( value_c )
+         
          call chargel2(r1,1.d0,one,val_real(1),dx,counter,out1)
          call chargel2(r1,1.d0,one,val_cmplx(1),dx,counter,out2)
          
@@ -395,32 +410,42 @@
       
       call symmetry_stress_rotij(index_a,jatom,cor_corr_ns2_buf)
       cor_corr_ns2 = cor_corr_ns2 + cor_corr_ns2_buf            
-  ENDDO   !loop over multiplicity  
-     
-     !===================look here==================
-      DO index2 = 1, 9                    
-         cor_corr_tot(index2) = ( cor_corr_sph(index2)*sq4pi*sq4pi + cor_corr_ns1(index2)*sq4pi + &
-                                cor_corr_ns2(index2)*sq4pi )!*MULT(jatom)                                           
-         sum_tot(index2,jatom) = sum_tot(index2,jatom) + REAL(cor_corr_sph(index2))*sq4pi*sq4pi + REAL(cor_corr_ns1(index2))*sq4pi &
-                                    + REAL(cor_corr_ns2(index2))*sq4pi*sq4pi*2.d0                                                            
-         WRITE(21,77) index2, REAL(cor_corr_sph(index2))*sq4pi*sq4pi,  REAL(cor_corr_ns1(index2))*sq4pi*sq4pi, &
-                                    REAL(cor_corr_ns2(index2))*sq4pi*sq4pi         
-      ENDDO
-     !===============================================         
       
+  ENDDO   !loop over multiplicity  
+  
+  WRITE(21,*)
+  WRITE(21,76) 'Spherical Contribution      Non-spherical_1       Non-spherical_2'
+  DO index2 = 1, 9                    
+     cor_corr_tot(index2)  = cor_corr_sph(index2)*O_by_4pi + &
+                             cor_corr_ns1(index2)*sq4pi    + &
+                             cor_corr_ns2(index2)*sq4pi 
+                             
+     sum_tot(index2,jatom) = sum_tot(index2,jatom)                 + & 
+                             REAL(cor_corr_sph(index2))*O_by_4pi   + &
+                             REAL(cor_corr_ns1(index2))*O_by_4pi*2 + &
+                             REAL(cor_corr_ns2(index2))*sq4pi         
+                             
+     WRITE(21,77) index2, REAL(cor_corr_sph(index2))*O_by_4pi,        &
+                          REAL(cor_corr_ns1(index2))*O_by_4pi*2,      &
+                          REAL(cor_corr_ns2(index2))*sq4pi
+  ENDDO  
+  
+76 FORMAT(A)      
 77 FORMAT(':COR__CORR__',i3.3,':',2x,3ES21.12)   
-    RETURN
-    END SUBROUTINE core_corr_stress
+  RETURN
+  END SUBROUTINE core_corr_stress
 
-!=======factors required to combine -l and +l
   SUBROUTINE multfc_core(fc,jatom,lmmax3,lm)
-    use struct, only : nat
-    implicit none
-    include 'param.inc'
-    integer, intent(in)   :: lmmax3, jatom
-    integer, intent(in)   :: lm(2,ncom+3)
-    integer               :: lm1p,mm,minu
-    complex*16            :: fc(ncom+3,nat), imag1, imag
+!Subroutine multfc_core combines -l and +l of the non-spherical
+!part of the potential
+
+    USE struct, only : nat
+    IMPLICIT NONE
+    INCLUDE 'param.inc'
+    INTEGER, INTENT(in)   :: lmmax3, jatom
+    INTEGER, INTENT(in)   :: lm(2,ncom+3)
+    INTEGER               :: lm1p,mm,minu
+    COMPLEX*16            :: fc(ncom+3,nat), imag1, imag
     
     imag  = (0.d0,1.d0)
     DO 1 lm1p = 1, lmmax3
@@ -445,20 +470,20 @@
   RETURN
   END SUBROUTINE multfc_core  
   
-subroutine symmetry_stress_rotij(index_a,jatom,inout_tensor)
-!This subroutine symmetrizes the core correction stress tensor using rotational matrices of the system
-!Both the rotij and rotloc are read from the case.struct file
-use struct, only : rotij, rotloc, lattic, ndif
-implicit none
-    include 'param.inc'
-    integer, intent(in)    :: index_a,jatom
-    real*8 , intent(inout) :: inout_tensor(1:9) 
-    real*8              :: buf_prod1(1:3,1:3),         &
-                           buf_prod2(1:3,1:3), A1(3,3),&
-                           buf_prod3(1:3,1:3), &
-                           detinv,B1(3,3), final_stress(3,3), &
-                           rotij_st(3,3,ndif), BR4(3,3)
-    integer             :: alpha, beta, index2, ii
+SUBROUTINE symmetry_stress_rotij(index_a,jatom,inout_tensor)
+!This subroutine symmetrizes the core correction stress tensor.
+!It uses rotational matrices rotij and rotloc to do that and these
+!matrices are given in the structure directory_name.struct file.
+
+    USE struct, only : rotij, rotloc, lattic, ndif
+    IMPLICIT NONE
+    INCLUDE 'param.inc'
+    INTEGER, INTENT(in)    :: index_a,jatom
+    REAL*8 , INTENT(inout) :: inout_tensor(1:9) 
+    REAL*8                 :: buf_prod1(1:3,1:3), buf_prod2(1:3,1:3),         &
+                              A1(3,3), buf_prod3(1:3,1:3),detinv,B1(3,3),     &
+                              final_stress(3,3),rotij_st(3,3,ndif), BR4(3,3)                                                               
+    INTEGER                :: alpha, beta, index2, ii
     
     rotij_st = rotij        
     
@@ -485,8 +510,8 @@ implicit none
       BR4(3,3)=1/3.d0            
     ENDIF
 
-
-
+    
+    !Local matrices are converted from the local coordinate to the cartesian coordinate.
     IF( (LATTIC(1:1) .eq. 'H' ) .OR. (LATTIC(1:1) .eq. 'R' ) ) THEN   
       A1(:,:) = BR4(:,:)
       detinv = 1.0/(A1(1,1)*A1(2,2)*A1(3,3) - A1(1,1)*A1(2,3)*A1(3,2)&
@@ -527,7 +552,8 @@ implicit none
      
 ! !-------Below modification is done because of the problem in Rutile 
 ! A^inv Tensor A gives the same result as A^T Tensor A
-
+      
+      !Symmetrize using local rotational matrix
       A1(:,:) =  rotloc(:,:,jatom) 
       
       detinv = 1.0/(A1(1,1)*A1(2,2)*A1(3,3) - A1(1,1)*A1(2,3)*A1(3,2)&
@@ -547,6 +573,8 @@ implicit none
     buf_prod2(:,:) = matmul( B1(:,:),buf_prod1(:,:) )
     buf_prod1(:,:) = matmul( buf_prod2(:,:),A1(:,:) )        
         
+      !Symmetrize using rotij matrix. This matrix convert the local
+      !coordinate of an atom to it's another equivalent atoms.
       A1(:,:) = rotij_st(:,:,index_a)           
       detinv = 1.0/(A1(1,1)*A1(2,2)*A1(3,3) - A1(1,1)*A1(2,3)*A1(3,2)&
               - A1(1,2)*A1(2,1)*A1(3,3) + A1(1,2)*A1(2,3)*A1(3,1)&
@@ -574,7 +602,7 @@ implicit none
    ENDDO   
    
 RETURN
-end subroutine symmetry_stress_rotij
+END SUBROUTINE symmetry_stress_rotij
   
 subroutine lm_combine(imax,lmmax,clm2,lm1,jatom)   
    use norm_kub, only: c_kub
