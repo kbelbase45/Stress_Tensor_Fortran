@@ -195,8 +195,9 @@
          
       ENDDO      
       
-        !In wien2k, negative m in charge density and potential are
+        !In wien2k, negative m in the charge density and potential are
         !not given in a input files. It needs to unpack as follow.
+        
         lmmax22  = lmmax_p
         DO lm1p = 1, lmmax_p           
            mm_p = lm11(2,lm1p)
@@ -425,7 +426,7 @@
   
   WRITE(21,*)
   WRITE(21,76) 'Spherical Contribution      Non-spherical_1       Non-spherical_2'
-  DO index2 = 1, 9 
+   DO index2 = 1, 9 
       
      cor_corr_tot(index2)  = cor_corr_sph(index2)*O_by_4pi + &
                              cor_corr_ns1(index2)*sq4pi    + &
@@ -440,7 +441,7 @@
      WRITE(21,77) index2, REAL(cor_corr_sph(index2))*O_by_4pi,        &
                           REAL(cor_corr_ns1(index2))*O_by_4pi*2,      &
                           REAL(cor_corr_ns2(index2))*sq4pi
-  ENDDO  
+   ENDDO  
   
 76 FORMAT(A)      
 77 FORMAT(':COR__CORR__',i3.3,':',2x,3ES21.12)   
@@ -448,8 +449,8 @@
   END SUBROUTINE core_corr_stress
 
   SUBROUTINE multfc_core(fc,jatom,lmmax3,lm)
-!Subroutine multfc_core combines -l and +l of the non-spherical
-!part of the potential
+   !Subroutine multfc_core combines -l and +l of the non-spherical
+   !part of the potential
 
     USE struct, only : nat
     IMPLICIT NONE
@@ -606,7 +607,9 @@ SUBROUTINE symmetry_stress_rotij(index_a,jatom,inout_tensor)
       B1(1,3) = +detinv * (A1(1,2)*A1(2,3) - A1(1,3)*A1(2,2))
       B1(2,3) = -detinv * (A1(1,1)*A1(2,3) - A1(1,3)*A1(2,1))
       B1(3,3) = +detinv * (A1(1,1)*A1(2,2) - A1(1,2)*A1(2,1))                
-            
+    
+    !Computes A^inv*STRESS*A, coordinate tranformation from 
+    !local to the global
     buf_prod2(:,:) = matmul(B1(:,:),buf_prod1(:,:))
     buf_prod1(:,:) = matmul(buf_prod2(:,:),A1(:,:))
    
