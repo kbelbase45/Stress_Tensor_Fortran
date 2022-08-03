@@ -36,7 +36,7 @@
        ! This is 141 additional point then specified in structure file, nrp = 781.
        
        counter = nrp + 141
-          ! imu is loop over the same type of atoms in the unit cell
+          ! imu is the loop over the same type of atoms in the unit cell
           ! for silicon, jatom = 1 and MULT(jatom) = 2.
           DO imu  = 1, MULT(jatom)
                !loop over the radial point inside an atomic sphere
@@ -47,7 +47,8 @@
                !calculate the derivate of the potential
                call dergl(counter,r1,v1,dpot,.false.,g0,.false.)          
                
-               !calculate r^3*dv and r^2*v on each radial points 
+               !calculate r^3*dv and r^2*v on each radial points
+               !ir is the loop over radial points insdie an atom
                DO ir = 1, counter                          
                   value(ir) = rhoc(ir)*dpot(ir)*r1(ir)
                   value2(ir)= rhoc(ir)*V1(ir)
@@ -195,7 +196,7 @@
       ENDDO      
       
         !In wien2k, negative m in charge density and potential are
-        !given in the input files. It needs to unpack as follow.
+        !not given in a input files. It needs to unpack as follow.
         lmmax22  = lmmax_p
         DO lm1p = 1, lmmax_p           
            mm_p = lm11(2,lm1p)
@@ -297,6 +298,7 @@
             
             DO t = -1,1
                DO tp = -1,1
+                  !Check the kronicker delta function del_{-t,tp}
                   IF(-t .ne. tp) CYCLE
                   index2 = 0
                   DO alpha = 1, 3
@@ -315,12 +317,14 @@
       DO lm1p = 1, lmtot1
          ll_p = lmtot(1,lm1p)
          mm_p = lmtot(2,lm1p)                                                       
-                  
+         
+         !Extract the real and imaginary parts of a complex number
          DO ri = 1, counter
             val_real(ri)  = REAL( vtmp_cmplx(ri,lm1p,jatom) )  
             val_cmplx(ri) = AIMAG( vtmp_cmplx(ri,lm1p,jatom) )                       
          ENDDO              
          
+         !dergl computes the radial derivative of a function
          call dergl(counter,r1,val_real,dval_real,.false.,g0,.false.)
          call dergl(counter,r1,val_cmplx,dval_cmplx,.false.,g0,.false.)
          
@@ -328,18 +332,21 @@
               val_real(ri)  = r1(ri)*rhoc(ri)*dval_real(ri)
               val_cmplx(ri) = r1(ri)*rhoc(ri)*dval_cmplx(ri)
          ENDDO
-
+         
+         !chargel2 computes the radial integration of a function
          call chargel2(r1,1.d0,one,val_real(1),dx,counter,out1)
          call chargel2(r1,1.d0,one,val_cmplx(1),dx,counter,out2)                  
          
+         !Combine the number to generate complex number
          out_c = dcmplx(out1,out2)                      
          
-         !Check triangle inequility for l indexes of Gaunt number.
+         !NOTRI function checks triangle inequility for l indexes of Gaunt number.
          IF( NOTRI(ll_p,1,1) .lt. 0) CYCLE           
            DO t = -1,1
               DO tp = -1,1
                  !Sum of m indexes has to zero.
-                 IF( (mm_p+t+tp) .ne. 0 ) CYCLE                      
+                 IF( (mm_p+t+tp) .ne. 0 ) CYCLE 
+                  !GAUNT function computes the gaunt number
                   gaunt1 = GAUNT(ll_p,1,1,-mm_p,t,tp)                                       
                                       
                   index2 = 0
@@ -362,6 +369,8 @@
       !Symmetrize the stress tensor using rotational matrix that is
       !in a structure file.
       call symmetry_stress_rotij(index_a,jatom,cor_corr_ns1_buf)
+      
+      !Sum over the same kind of atoms in the unit cell
       cor_corr_ns1 = cor_corr_ns1 + cor_corr_ns1_buf                                    
       
       !Second part of the non-spherical core correction contribution
@@ -385,6 +394,7 @@
          out_c = dcmplx(out1,out2)                  
          
          DO s = -1,1,2
+            !L=(ll_p+s) quantum number of spherical harmonics cannot be negative
             IF( (ll_p+s) .ne. 1) CYCLE
             DO t = -1,1
                DO tp = -1,1
@@ -415,7 +425,8 @@
   
   WRITE(21,*)
   WRITE(21,76) 'Spherical Contribution      Non-spherical_1       Non-spherical_2'
-  DO index2 = 1, 9                    
+  DO index2 = 1, 9 
+      
      cor_corr_tot(index2)  = cor_corr_sph(index2)*O_by_4pi + &
                              cor_corr_ns1(index2)*sq4pi    + &
                              cor_corr_ns2(index2)*sq4pi 
@@ -424,7 +435,8 @@
                              REAL(cor_corr_sph(index2))*O_by_4pi   + &
                              REAL(cor_corr_ns1(index2))*O_by_4pi*2 + &
                              REAL(cor_corr_ns2(index2))*sq4pi         
-                             
+     
+     !WRITE all the three contibutions in the output file for each atoms
      WRITE(21,77) index2, REAL(cor_corr_sph(index2))*O_by_4pi,        &
                           REAL(cor_corr_ns1(index2))*O_by_4pi*2,      &
                           REAL(cor_corr_ns2(index2))*sq4pi
@@ -487,6 +499,8 @@ SUBROUTINE symmetry_stress_rotij(index_a,jatom,inout_tensor)
     
     rotij_st = rotij        
     
+    !For hexagonal lattice, to convert the cordinate system use the following
+    !3x3 matrix
     IF(LATTIC(1:1) .EQ. 'H') THEN
       BR4(1,1)=SQRT(3.d0)/2.d0                                              
       BR4(1,2)=-.5d0     
@@ -497,7 +511,8 @@ SUBROUTINE symmetry_stress_rotij(index_a,jatom,inout_tensor)
       BR4(3,1)=0.0d0                                                      
       BR4(3,2)=0.0d0                                                      
       BR4(3,3)=1.d0                                   
-
+      
+    !For rhombohedral lattice use the following matrix
     ELSEIF(LATTIC(1:1) .EQ. 'R') THEN
       BR4(1,1)=1/2.d0/sqrt(3.d0)
       BR4(1,2)=-1/2.d0                                                     
@@ -534,7 +549,9 @@ SUBROUTINE symmetry_stress_rotij(index_a,jatom,inout_tensor)
       rotij_st(:,:,index_a) = buf_prod1(:,:)
 
     ENDIF
-   
+    
+    !Change one-dimensional vector into 3x3 matrix
+    !It reshapes the array so we get a 3x3 matrix
     index2 = 0
     DO alpha = 1, 3
        DO beta = 1,3
@@ -550,7 +567,7 @@ SUBROUTINE symmetry_stress_rotij(index_a,jatom,inout_tensor)
 !       buf_prod2(:,:) = matmul(transpose(rotij_st(:,:,index_a)),buf_prod1(:,:))
 !       buf_prod1(:,:) = matmul(buf_prod2(:,:),rotij_st(:,:,index_a))
      
-! !-------Below modification is done because of the problem in Rutile 
+! !-------The following change is made when a bug is detected for Rutile (TiO2) calculations 
 ! A^inv Tensor A gives the same result as A^T Tensor A
       
       !Symmetrize using local rotational matrix
@@ -592,7 +609,8 @@ SUBROUTINE symmetry_stress_rotij(index_a,jatom,inout_tensor)
             
     buf_prod2(:,:) = matmul(B1(:,:),buf_prod1(:,:))
     buf_prod1(:,:) = matmul(buf_prod2(:,:),A1(:,:))
-    
+   
+   !Convert 3x3 matrix back to one-dimensional array
    index2 = 0
    DO alpha = 1, 3
       DO beta = 1,3
@@ -604,42 +622,16 @@ SUBROUTINE symmetry_stress_rotij(index_a,jatom,inout_tensor)
 RETURN
 END SUBROUTINE symmetry_stress_rotij
   
-subroutine lm_combine(imax,lmmax,clm2,lm1,jatom)   
-   use norm_kub, only: c_kub
-   implicit none
-   include 'param.inc'
+SUBROUTINE lm_combine(imax,lmmax,clm2,lm1,jatom)   
+   USE norm_kub, ONLY: c_kub
+   IMPLICIT NONE
+   INCLUDE 'param.inc'
    
-   integer, intent(in)  :: imax,lmmax,lm1(2,ncom+3), jatom
-   complex*16           :: clm2(nrad+141,ncom+3)!,vpot(1:nrad,ncom+3)
-!    real*8               :: c_kub(0:10,0:10)
-   integer              :: i,j
-   real*8               :: sq1,sqrt2,c1,c2,c3
-!=======coefficient for real spherical harmonics in cubic system========   
-!   c_kub=0.0d0
-!   c_kub(0,0)=1.d0
-!   c_kub(3,2)=1.d0
-!   c_kub(4,0)=.5d0*SQRT(7.d0/3.d0)
-!   c_kub(4,4)=.5d0*SQRT(5.d0/3.d0)
-!   c_kub(6,0)=.5d0*SQRT(.5d0)
-!   c_kub(6,2)=.25d0*SQRT(11.d0)
-!   c_kub(6,4)=-.5d0*SQRT(7.d0/2.d0)
-!   c_kub(6,6)=-.25d0*SQRT(5.d0)
-!   c_kub(7,2)=.5d0*SQRT(13.d0/6.d0)
-!   c_kub(7,6)=.5d0*SQRT(11.d0/6.d0)
-!   c_kub(8,0)=.125d0*SQRT(33.d0)
-!   c_kub(8,4)=.25d0*SQRT(7.d0/3.d0)
-!   c_kub(8,8)=.125d0*SQRT(65.d0/3.d0)
-!   c_kub(9,2)=.25d0*SQRT(3.d0)
-!   c_kub(9,4)=.5d0*SQRT(17.d0/6.d0)
-!   c_kub(9,6)=-.25d0*SQRT(13.d0)
-!   c_kub(9,8)=-.5d0*SQRT(7.d0/6.d0)
-!   c_kub(10,0)=.125d0*SQRT(65.D0/6.D0)
-!   c_kub(10,2)=.125d0*SQRT(247.D0/6.D0)
-!   c_kub(10,4)=-.25d0*SQRT(11.D0/2.D0)
-!   c_kub(10,6)=0.0625d0*SQRT(19.D0/3.D0)
-!   c_kub(10,8)=-.125d0*SQRT(187.D0/6.D0)
-!   c_kub(10,10)=-.0625d0*SQRT(85.d0)
-!===========================================================================   
+   INTEGER, INTENT(IN)  :: imax,lmmax,lm1(2,ncom+3), jatom
+   COMPLEX*16           :: clm2(nrad+141,ncom+3)
+   INTEGER              :: i,j
+   REAL*8               :: sq1,sqrt2,c1,c2,c3
+   
   sqrt2 = sqrt(2.d0)
   
   i = 1
@@ -650,7 +642,6 @@ subroutine lm_combine(imax,lmmax,clm2,lm1,jatom)
      ELSEIF ( ( lm1(1,i) .eq. -3 ) .and. ( lm1(2,i) .eq. 2 )) THEN
         DO j = 1, imax
            clm2(j,i) = clm2(j,i)/sqrt2
-!            vpot(j,i) = vpot(j,i)/sqrt2
         ENDDO
         i = i + 1
      ELSEIF (( lm1(1,i) .eq. 4 ) .OR. ( lm1(1,i) .eq. 6 ) .OR. &
@@ -665,11 +656,7 @@ subroutine lm_combine(imax,lmmax,clm2,lm1,jatom)
             DO J = 1, imax
                clm2(j,i)   = clm2(j,i)*c1 + clm2(j,i+1)*c2
                clm2(j,i+1) = clm2(j,i)*c2/sqrt2
-               clm2(j,i)   = clm2(j,i)*c1/sq1
-               
-!                vpot(j,i)   = vpot(j,i)*c1 + vpot(j,i+1)*c2
-!                vpot(j,i+1) = vpot(j,i)*c2/sqrt2
-!                vpot(j,i)   = vpot(j,i)*c1/sq1
+               clm2(j,i)   = clm2(j,i)*c1/sq1               
             ENDDO
                i = i + 2
      ELSEIF( ( lm1(1,i) .eq. 8 ) .OR.( lm1(1,i) .eq. 10 ) ) THEN       
@@ -685,12 +672,7 @@ subroutine lm_combine(imax,lmmax,clm2,lm1,jatom)
               clm2(j,i)   = clm2(j,i)*c1 + clm2(j,i+1)*c2 + clm2(j,i+2)*c3
               clm2(j,i+1) = clm2(j,i)*c2/sqrt2
               clm2(j,i+2) = clm2(j,i)*c3/sqrt2
-              clm2(j,i)   = clm2(j,i)*c1/sq1
-              
-!               vpot(j,i)   = vpot(j,i)*c1 + vpot(j,i+1)*c2 + vpot(j,i+2)*c3
-!               vpot(j,i+1) = vpot(j,i)*c2/sqrt2
-!               vpot(j,i+2) = vpot(j,i)*c3/sqrt2
-!               vpot(j,i)   = vpot(j,i)*c1/sq1
+              clm2(j,i)   = clm2(j,i)*c1/sq1              
            ENDDO
      ELSE 
            WRITE(6,*) 'UNCORRECT LM LIST FOR CUBIC STRUCTURE'
@@ -701,17 +683,11 @@ subroutine lm_combine(imax,lmmax,clm2,lm1,jatom)
   
   
 RETURN
-end subroutine lm_combine
+END SUBROUTINE lm_combine
 
 
 
 SUBROUTINE multsu(qq,lmmax,lm)
-!                                                                       
-!                                
-!     
-
-!   USE struct, ONLY: nat
-!   use parallel, only: abort_parallel
   use norm_kub, only: c_kub
   IMPLICIT NONE
   INCLUDE 'param.inc'
@@ -719,33 +695,6 @@ SUBROUTINE multsu(qq,lmmax,lm)
   COMPLEX*16   :: qq(ncom+3),imag,a,b,c, ak1,bk1,ck1
   INTEGER      :: lm(2,ncom+3),lmmax,llmm,i
   REAL*8       :: sqrt2,sq1,c1,c2,c3
-!   REAL*8       :: c_kub(0:10,0:10)  
-!----------------------------------------------------------------------    
-!
-!   c_kub=0.0d0
-!   c_kub(0,0)=1.d0
-!   c_kub(3,2)=1.d0
-!   c_kub(4,0)=.5d0*SQRT(7.d0/3.d0)
-!   c_kub(4,4)=.5d0*SQRT(5.d0/3.d0)
-!   c_kub(6,0)=.5d0*SQRT(.5d0)
-!   c_kub(6,2)=.25d0*SQRT(11.d0)
-!   c_kub(6,4)=-.5d0*SQRT(7.d0/2.d0)
-!   c_kub(6,6)=-.25d0*SQRT(5.d0)
-!   c_kub(7,2)=.5d0*SQRT(13.d0/6.d0)
-!   c_kub(7,6)=.5d0*SQRT(11.d0/6.d0)
-!   c_kub(8,0)=.125d0*SQRT(33.d0)
-!   c_kub(8,4)=.25d0*SQRT(7.d0/3.d0)
-!   c_kub(8,8)=.125d0*SQRT(65.d0/3.d0)
-!   c_kub(9,2)=.25d0*SQRT(3.d0)
-!   c_kub(9,4)=.5d0*SQRT(17.d0/6.d0)
-!   c_kub(9,6)=-.25d0*SQRT(13.d0)
-!   c_kub(9,8)=-.5d0*SQRT(7.d0/6.d0)
-!   c_kub(10,0)=.125d0*SQRT(65.D0/6.D0)
-!   c_kub(10,2)=.125d0*SQRT(247.D0/6.D0)
-!   c_kub(10,4)=-.25d0*SQRT(11.D0/2.D0)
-!   c_kub(10,6)=0.0625d0*SQRT(19.D0/3.D0)
-!   c_kub(10,8)=-.125d0*SQRT(187.D0/6.D0)
-!   c_kub(10,10)=-.0625d0*SQRT(85.d0)
 
   sqrt2=SQRT(2.d0)
   !     
@@ -809,50 +758,68 @@ SUBROUTINE multsu(qq,lmmax,lm)
 END SUBROUTINE MULTsu
 
 
-subroutine read_vns()
-!This subroutine reads the non-spherical potential to calculate the non-spherical part of the core correction stress.
+SUBROUTINE read_vns()
+!This subroutine reads the non-spherical potential to calculate the 
+!non-spherical part of the core correction stress.
 !This is being called from outside of jatom loop in hfsd.f
-   use struct  , only: nat, jri
-   use core_nsp, only: vns_st, lmmax_st, lm11_st
-   implicit none
-   include 'param.inc'
-   integer    :: insv, ll_p, mm_p, lm(2, ncom+3), ri, nrp, lm1p, ii, &
+   USE STRUCT  , only: nat, jri
+   USE CORE_NSP, only: vns_st, lmmax_st, lm11_st
+   IMPLICIT NONE
+   
+   !param.inc contains nrad, ncom
+   INCLUDE 'param.inc'
+   
+   INTEGER    :: insv, ll_p, mm_p, lm(2, ncom+3), ri, nrp, lm1p, ii, &
                  jatom
-   real*8     :: vtmp(nrad), val_real(nrad), dval_real(nrad), r1(nrad)  , &
+   REAL*8     :: vtmp(nrad), val_real(nrad), dval_real(nrad), r1(nrad)  , &
                  out1, out2, one
    
-      allocate( vns_st(nrad,ncom+3,nat) )
-      allocate( lmmax_st(nat) ); allocate( lm11_st(2,ncom+3,nat) ) 
+      ALLOCATE( vns_st(nrad,ncom+3,nat) )
+      ALLOCATE( lmmax_st(nat) ); ALLOCATE( lm11_st(2,ncom+3,nat) ) 
             
       vtmp       = 0.d0
       vns_st = (0.d0,0.d0)
       
-!       rewind(19)
-      read(19,'(//)',iostat=insv)
-      IF(insv .ne. 0) STOP 'Error in reading vns file "core.corr.f" '
-   DO jatom = 1, nat   
-      nrp = jri(jatom)
-      read(19,'(3x)') 
-      read(19,'(15x,i3//)') lmmax_st(jatom)                                           
+      !File is already open, put the point two line down
+      READ(19,'(//)',iostat=insv)
       
+      !If problems encounter, stop executing the code and print the message
+      IF(insv .ne. 0) STOP 'Error in reading vns file "core.corr.f" '
+   
+   !Potential is read for different type of atom in the unit cell
+   DO jatom = 1, nat   
+      !Maximum radial point inside an atom
+      nrp = jri(jatom)
+      READ(19,'(3x)') 
+      READ(19,'(15x,i3//)') lmmax_st(jatom)                                           
+      
+      !Read the pontential of each lm components
       DO lm1p = 1, lmmax_st(jatom)
-         read(19,'(15x,i3,5x,i2/)') ll_p, mm_p         
+         !Read L and M
+         READ(19,'(15x,i3,5x,i2/)') ll_p, mm_p         
+         
          lm(1,lm1p) = ll_p
          lm(2,lm1p) = mm_p      
+         
+         !Store L and M for each atom
          lm11_st(1,lm1p,jatom) = ll_p
          lm11_st(2,lm1p,jatom) = mm_p
          
-         read(19,'(3x,4ES19.12)') (vtmp(ri), ri = 1, nrp)
+         
+         READ(19,110) (vtmp(ri), ri = 1, nrp)
                  
          DO ri = 1, nrp
             vns_st(ri,lm1p,jatom) = vtmp(ri)
          ENDDO                  
          
-         read(19,'(/)')
+         READ(19,'(/)')
       ENDDO
-      read(19,'(///)')
+      !END loop over l and m i.e lm1p
+      READ(19,'(///)')
 
-   ENDDO   
+   ENDDO 
+   !END loop over atoms i.e jatom
    
-return
-end subroutine read_vns
+110 FORMAT(3x,4ES19.12)   
+RETURN
+END SUBROUTINE read_vns
