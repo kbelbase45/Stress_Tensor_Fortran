@@ -12,7 +12,7 @@
     by itself. The assumption is that the core density is still spherical, 
     but the potential after the system is deformed will have a non-spherical part.
      
-<p>As the implementation progresses, first the non-spherical part of the potential at each radial point (ri) for the combined index (lm1p) of l and m and for each atom (jatom) is read and stored in the variable <b>vns_st(ri,lm1p), jatom)</b>. This action is performed in subroutine <b>'read_vns()'</b>, see at the end of <b>core_corr_stress.f95</b>, and called from the outside a loop that runs over different kinds of atoms in the system and accesses all stored variables through the module. </p>
+<p>As the implementation progresses, first the non-spherical part of the potential (DataFiles/Non-spherical_potential.vns) at each radial point (ri) for the combined index (lm1p) of l and m and for each atom (jatom) is read and stored in the variable <b>vns_st(ri,lm1p), jatom)</b>. This action is performed in subroutine <b>'read_vns()'</b> (find at the end of <b>core_corr_stress.f95</b>), and called from the outside a loop that runs over different kinds of atoms in the system and accesses all stored variables through the module. </p>
 
 The multfc_core subroutine calculates the necessary factor when converting complex spherical harmonics to real ones - factor before the square bracket on the right side in the equation. The important thing about working with real spherical harmonics is that it is easy on memory and they are the most appropriate basis functions for calculations where atomic symmetry is important.(https://docs.abinit.org/theory/spherical_harmonics/)<br>
 
