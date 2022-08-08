@@ -27,5 +27,6 @@ for m = 0 <br>
 ![\Large y^l_m=Y_{0}^l](https://latex.codecogs.com/svg.latex?\Large&space;y^l_m=Y_{0}^l ) 
 
 
-
+<h3>Electrostatic part of the full stress tensor in the APW based method</h3>
+ ELECTROSTATIC_STRESS.F95
 
