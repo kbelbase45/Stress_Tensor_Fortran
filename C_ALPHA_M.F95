@@ -1,10 +1,14 @@
-!! The coefficients that are calculated in this subroutine are used in our following publication
-!!
+!!----------------------------------------------------------------------------------------------------
+!! The coefficients calculated in this subprogram will be used in our following publication          |
+!! They are used wherever the unit vector is expanded in term of spherical harmonics and the         |
+!! derivative of the spherical harmonics need to be computed.                                        |
+!!                                                                                                   |
 !! Kamal Belbase, Andreas Tröster, and Peter Blaha                                                   |
-!! Phys. Rev. B 104, 174113 – Published 29 November 2021
-!!
-!! c_matrix is equivalent to c_{\alpha t} of Eq.(C6)
-!! c_ast_lm is equivalent to c_{\alpha}^{s t}(l,m) of Eq.(C4)
+!! Phys. Rev. B 104, 174113 – Published 29 November 2021                                             |
+!!                                                                                                   |
+!! c_matrix is equivalent to c_{\alpha t} of Eq.(C6)                                                 |
+!! c_ast_lm is equivalent to c_{\alpha}^{s t}(l,m) of Eq.(C4)                                        |
+!!----------------------------------------------------------------------------------------------------
 
   SUBROUTINE c_alpha_m(c_matrix)
      !This c matrix comes into the formalism when a radial unit vector is expanded interm of spherical harmonics
