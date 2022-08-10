@@ -28,5 +28,13 @@ for m = 0 <br>
 
 
 <h3>Electrostatic part of the full stress tensor in the APW based method</h3>
- ELECTROSTATIC_STRESS.F95
+ ELECTROSTATIC_STRESS.F95 <br>
+ 
+    This computes the change in the electrostatic energy, Coulomb and Madelung 
+    energy, when a dofrmation is applied in a given system. The code first compute 
+    the change in local coordinate system and later it is transormed to the global 
+    coordinate system using similarity transformation. The expression is given in 
+    Eq (G5) (the second line) in our publication. 
+    
+    
 
