@@ -36,5 +36,5 @@ for m = 0 <br>
     coordinate system using similarity transformation. The expression is given in 
     Eq (G5) (the second line) in our publication. 
     
-    
+     
 
