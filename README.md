@@ -31,10 +31,10 @@ for m = 0 <br>
  ELECTROSTATIC_STRESS.F95 <br>
  
     This computes the change in the electrostatic energy, Coulomb and Madelung 
-    energy, when a dofrmation is applied in a given system. The code first compute 
-    the change in local coordinate system and later it is transormed to the global 
-    coordinate system using similarity transformation. The expression is given in 
-    Eq (G5) (the second line) in our publication. 
+    energy, when a dofrmation is applied in a given system. The code first calculates
+    the change in the local coordinate system and is later transformed to the global 
+    coordinate system using a similarity transformation. The expression is given in 
+    Equation (G5) (second line) in our publication.
     
      
 
