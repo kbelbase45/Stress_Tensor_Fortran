@@ -24,7 +24,7 @@ The surface correction part = In the case of APW, to make the basis function con
 The core_corr_stress.f95 file calculates the core part of the stress 
     tensor implemented in the WIEN2k package. This code basically calculates 
     Eq.(G6) of our paper "Kamal Belbase, Andreas Tröster, and Peter Blaha 
-    Phys. Rev. B 104, 174113" or Eq.(6.48) of Core_Correction_stress.pdf (
+    Phys. Rev. B 104, 174113" (https://journals.aps.org/prb/abstract/10.1103/PhysRevB.104.174113) or Eq.(6.48) of Core_Correction_stress.pdf (
     in this repo). In order to use this code, the spherical part 
     of the charge density and structure parameters must be supplied. These 
     parameters are readily available as a by-product of the total energy 
