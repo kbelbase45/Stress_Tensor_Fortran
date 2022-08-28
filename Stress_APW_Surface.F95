@@ -17,6 +17,12 @@ SUBROUTINE stress_APW_surface(nemin,nemax,jatom,rmt,ALM,BLM,CLM,A_surf2,buf_APW)
    ! A_surf2       = surface term at the sphere boundary from the interstitial side
    ! buf_APW       = output integration (from_inside_sphere-from_outside_sphere)|_{at boundry}
    
+   ! psi_is        = the part of wave function in interstitial 
+   !                 this expand interms of spherical harmonics and bessel function using
+   !                 Rayleigh expansion
+   ! psi_ra        = the part of wave function in an atomic sphere
+   ! Isurf_int ds  = surface integral
+   ! buf_APW       = Isurf_int [psi_ra*(d psi_ra/dr_a) - psi_is*(d psi_is /dr_a) ] ds                   
    
    USE param   
    USE atspdt, ONLY: P,DP,PE,DPE
