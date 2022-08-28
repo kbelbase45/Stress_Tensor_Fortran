@@ -14,7 +14,7 @@ The kinetic stress part  = originates due to the change in kinetic energy when a
 
 The valence correction part = this is similar to the Pluy correction in the force calculation and is often referred to as the incomplete basis set correction. In short, the basis set has the atomic positional dependence, and that's why this correction is needed.<br>
 
-The surface correction part = In the case of APW, to make the basis function continuous, only the value of the basis function is adjusted at the sphere boundary, but nothing is constrained for the slope. Therefore, this contribution had to be included.<br>
+The surface correction part (Stress_APW_Surface.F95) = In the case of APW, to make the basis function continuous, only the value of the basis function is adjusted at the sphere boundary, but nothing is constrained for the slope. Therefore, this contribution had to be included.<br>
 
 <b>Each contribution is a very large number, but eventually they cancel each other out and only a small number is left. Therefore, a small error in any term will produce a very different result and a very wrong result.</b>
 
