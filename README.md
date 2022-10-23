@@ -18,7 +18,7 @@ The surface correction part (Stress_APW_Surface.F95) = As a basic rule of quantu
 
 The valence correction part ([Eq.(G2)](https://publik.tuwien.ac.at/files/publik_298962.pdf)) = this is similar to the Pluy correction in the force calculation and is often referred to as the incomplete basis set correction. In short, the basis set has the atomic positional dependence, and that's why this correction is needed.<br>
 
-<b>Each contribution is a [very large number](https://github.com/kbelbase45/Stress_Tensor_Fortran/blob/main/Presentation/different_component_stress.png), but eventually they cancel each other out and only a small number is left. Therefore, a small error in any term will produce a very different result and a very wrong result.</b>
+<b>Each contribution is a [very large number](https://github.com/kbelbase45/Stress_Tensor_Fortran/blob/main/Presentation/different_component_stress.png), but eventually they cancel each other out and only a small number is left. Therefore, a small error in any one term will produce a very different result and a very wrong result.</b>
 
 
 <h3>Core correction part of the full stress tensor in the APW based method</h3>
