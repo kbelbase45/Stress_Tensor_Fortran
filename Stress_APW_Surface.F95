@@ -75,6 +75,7 @@ SUBROUTINE stress_APW_surface(nemin,nemax,jatom,rmt,ALM,BLM,CLM,A_surf2,buf_APW)
       DO v0 = -s0,s0
          DO t0 = -1,1
             DO tp = -1,1
+               ! m character of spherical harmonics statisfy the following condition
                IF(-v0+t0+tp .ne. 0) CYCLE
                index1 = 0
                DO l0 = 0,lmax2
@@ -88,11 +89,15 @@ SUBROUTINE stress_APW_surface(nemin,nemax,jatom,rmt,ALM,BLM,CLM,A_surf2,buf_APW)
                            IF(-m0+mp+v0 .ne. 0) CYCLE
                            
                            !Because of the surface integral of four spherical harmonics, there are
-                           !the product of two gaunt number
+                           !the product of two gaunt numbers. l0, m0, lp, and mp indexes come from
+                           !spherical harmonics of the basis function. t0, tp are appeared when the
+                           !unit vectors are expressed in the of the spherical harmonic with angular
+                           !quantum number = 1
                            
                            gaunt1 = GAUNT(s0,1,1,v0,t0,tp)
                            gaunt2 = GAUNT(l0,lp,s0,m0,mp,v0)
                            
+                           !Loop over alpha and beta generate all nine components of the stress tensor
                            DO alpha = 1, 3
                               DO beta = 1,3
                                  DO num = nemin,nemax
@@ -102,7 +107,9 @@ SUBROUTINE stress_APW_surface(nemin,nemax,jatom,rmt,ALM,BLM,CLM,A_surf2,buf_APW)
                                     (ALM(index2,num)*DP(l0)+BLM(index2,num)*DPE(l0)-A_surf2(index2,num))
                                  ENDDO
                                  
-                                 DO num = nemin,nemax
+                                 !jlo is for semicor orbitals. The are three possibilities <semicore|normal>, <normal|semicore>
+                                 !<semicore|semicore>
+                                 DO num = nemin,nemax                                    
                                     DO jlo = 1,ilo(l0)
                                        IF(loor(jlo,l0)) THEN
                                          buf_APW(alpha,beta,num) = buf_APW(alpha,beta,num) + &
