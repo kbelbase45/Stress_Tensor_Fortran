@@ -1,8 +1,10 @@
 # Stress Tensor
+
 <p>
   <a href='http://susi.theochem.tuwien.ac.at/'>
   </a>
 </p>
+
 This repository contains some Fortran files that I wrote to complete my PhD. This is of course not complete, but some files provided for demonstration purposes only. All code is implemented in [WIEN2k code](http://susi.theochem.tuwien.ac.at/). In the WIEN2k code, the all electron Augment Plane Wave [(APW)](https://en.wikipedia.org/wiki/Linearized_augmented-plane-wave_method) method is used to define the basis function and the potential. A unit cell divides into an atomic sphere, the interstitial regions and the definition of basis function and potential on these regions are different. For example, within an atomic region, the radial part of the basis function is the solution of the Schrödinger equation with spherical potential, and spherical harmonics define the angular component. And in the interstitial area, the basis function is defined by plane waves.<br>
 
 In addition, within an atomic sphere, there are core, semi-core, and part of the valence electrons. But the interstitial region has only remaining valence electrons. Therefore, each contribution integrated over an entire unit cell is decomposed into an atomic sphere and interstitial parts and evaluated differently. However, integration is only calculated within one atomic sphere for the core electron. It is due to an assumption that the core wave function becomes zero at the spherical boundary and beyond. <br>
